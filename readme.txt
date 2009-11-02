@@ -35,7 +35,7 @@ Please write a topic in the [WordPress support forums](http://wordpress.org/tags
 
 == Screenshots ==
 
-1. A screenshot of vlam-a-post in action on [waltervos.nl] (http://www.waltervos.nl/ "Internetstrategie")
+1. A screenshot of vlam-a-post in action on www.waltervos.nl
 
 == Changelog ==
 
