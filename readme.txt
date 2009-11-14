@@ -5,7 +5,7 @@ Contributors: Walter Vos
 Tags: URL shortener, vlam, twitter, link shortener
 Requires at least: 2.0
 Tested up to: 2.8.5
-Stable tag: 0.1
+Stable tag: 1.0.1
 
 vlam-a-post automatically creates a vl.am URL for every post you publish and keeps track of the number of clicks the vl.am URL received.
 
