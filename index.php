@@ -2,26 +2,59 @@
     /**
      * Plugin Name: vlam-a-post
      * Plugin URI: http://wordpress.org/extend/plugins/vlam-a-post/
-     * Description: Invlammable
-     * Version: 0.1
+     * Description: Automatically creates a vl.am URL for every post you publish. Just write a new post, you'll catch my drift :-)
+     * Version: 1.0
      * Author: Walter Vos
      * Author URI: http://www.waltervos.nl/
      */
 
+    register_activation_hook( __FILE__, 'vap_activate' );
     add_action('admin_menu', 'add_vap_meta_box');
-    add_action('admin_init', 'register_vap_settings' );
-    //add_action('admin_init', 'vap_add_admin' );
+    add_action('admin_init', 'vap_admin_init');
+    add_action('wp_dashboard_setup', 'add_vap_dashboard_widget' );
+    add_action('admin_notices', 'vap_activation_notice');
+    add_action('admin_print_styles', 'vap_add_css');
 
-        /*function vap_add_admin() {
-            add_submenu_page(
-                'tools.php',
-                'vlam-a-post',
-                'vlam-a-post',
-                8,
-                __FILE__,
-                'vap_display_admin'
-            );
-        }*/
+    function vap_admin_init() {
+        wp_register_style('vap_css', WP_PLUGIN_URL . '/vlam-a-post/vap.css');
+        register_setting('vap_options', 'vap_activated');
+    }
+
+    function vap_add_css() {
+        wp_enqueue_style('vap_css');
+    }
+
+    function vap_activate() {
+        update_option('vap_activated', true);
+    }
+
+    function vap_activation_notice() {
+        if (get_option('vap_activated')) {
+            echo '<div class="updated fade" id="message"><p><strong>Thanks for using vlam-a-post!</strong> I added a widget to your dashboard to keep track of your most recent vlam&apos;s. You can deactivate it if you wish by using the screen options on the dashboard.</p></div>';
+            delete_option('vap_activated');
+        }
+    }
+
+    function vap_dashboard_widget() {
+        global $post;
+        $myposts = get_posts('numberposts=5');
+        if ($myposts) {
+            echo '<div class="rss-widget"><ul>';
+            foreach($myposts as $post) :
+                if (!get_vlam_url($post->ID)) continue;
+                echo '<li><a class="rsswidget" href="' . get_vlam_url($post->ID) . '?">' . get_the_title() . '</a> (' . get_vlam_count($post->ID) . ' clicks). <a target="_blank" href="http://twitter.com/home?status=' . get_vlam_url($post->ID) . '">Post to twitter</a></li>';
+            endforeach;
+            echo '</ul></div>';
+        }
+    }
+
+    // Create the function use in the action hook
+
+    function add_vap_dashboard_widget() {
+        wp_add_dashboard_widget('vap_dashboard_widget', 'Recent vl.am&apos;s', 'vap_dashboard_widget');
+    }
+
+    // Hoook into the 'wp_dashboard_setup' action to register our other functions
 
 
     function add_vap_meta_box() {
@@ -33,19 +66,15 @@
             add_action('dbx_post_advanced', 'vap_old_meta_box' );
         }
     }
+
     function vap_meta_box () {
         global $post;
-        if ($vlam_url = get_post_meta($post->ID, '_vlam_url', true)) { // There is already a vl.am URL in post_meta
-            $vlam_count = get_vlam_count($vlam_url);
-            $message = '<p>This posts vl.am URL is <a target="_blank" href="' . $vlam_url . '?">' . $vlam_url . '</a>. It has been clicked ' . $vlam_count . ' times. <a target="_blank" href="http://twitter.com/home?status=' . urlencode($vlam_url) . '">Tweet it!</a></p>';
-        }
-        elseif ($post->post_status != 'publish') {
+        if ($post->post_status != 'publish') { // We don't do anything when the post hasn't been published yet
             $message = '<p>This post hasn\'t been published yet. A vl.am URL will be created when you publish this post.</p>';
         }
-        else { // We don't have a vl.am URL for this post yet, let's get one
-            if ($vlam_url = get_vlam_url(get_permalink($post->ID))) { // Succes, now let's store it in post_meta
-                update_post_meta($post->ID, '_vlam_url', $vlam_url);
-                $vlam_count = get_vlam_count($vlam_url);
+        else { // Post is published, let's get some vl.am info
+            if ($vlam_url = get_vlam_url($post->ID)) { // Succes
+                $vlam_count = get_vlam_count($post->ID, false);
                 $message = '<p>This posts vl.am URL is <a target="_blank" href="' . $vlam_url . '?">' . $vlam_url . '</a>. It has been clicked ' . $vlam_count . ' times. <a target="_blank" href="http://twitter.com/home?status=' . urlencode($vlam_url) . '">Tweet it!</a></p>';
             }
             else { // We were unable to get a vl.am URL for this post
@@ -58,77 +87,39 @@
     function vap_old_meta_box() {
         echo '<div class="dbx-box-wrapper">' . "\n";
         echo '<fieldset id="vlam-a-post-fieldset" class="dbx-box">' . "\n";
-        echo '<div class="dbx-handle-wrapper"><h3 class="dbx-handle">' .
-            __( 'vlam-a-post', 'vlam_a_post' ) . "</h3></div>";
-
+        echo '<div class="dbx-handle-wrapper"><h3 class="dbx-handle">' . __( 'vlam-a-post', 'vlam_a_post' ) . "</h3></div>";
         echo '<div class="dbx-content-wrapper"><div class="dbx-content">';
-
-        // output editing form
-
         vap_meta_box();
-
-        // end wrapper
-
         echo "</div></div></fieldset></div>\n";
     }
 
 
-    function get_vlam_url($long_url) {
+    function get_vlam_url($post_id) {
+        if ($vlam_url = get_post_meta($post_id, '_vlam_url', true)) return $vlam_url; // We already have a vl.am URL for this post, return immediately
         $request = new WP_Http;
-        $shorten_response = $request->request('http://vl.am/api/shorten/plain/' . $long_url);
+        $shorten_response = $request->request('http://vl.am/api/shorten/plain/' . get_permalink($post_id));
         $vlam_url = $shorten_response['body'];
         unset ($request);
-        if ($vlam_url == '') return false;
-        return $vlam_url;
+        if ($vlam_url == '') return false; // Something went wrong trying to get a vl.am URL
+        return $vlam_url; // All is well
     }
 
-    function get_vlam_count($vlam_url) {
+    function get_vlam_count($post_id, $use_cache = true) {
+        if ($use_cache) {
+            if ($vlam_count = get_post_meta($post_id, '_vlam_count', false)) {
+                $vlam_count = $vlam_count[0];
+                if ((strtotime('now') - $vlam_count['last_update']) < 300) {
+                    return $vlam_count['value'];
+                }
+            }
+        }
+        $vlam_url = get_vlam_url($post_id);
         $request = new WP_Http;
         $count_response = $request->request('http://vl.am/api/count/plain/' . $vlam_url);
         $vlam_count = $count_response['body'];
         unset ($request);
         if ($vlam_count == '') return false;
+        update_post_meta($post_id, '_vlam_count', array('value' => $vlam_count, 'last_update' => strtotime('now')));
         return $vlam_count;
     }
-
-    function register_vap_settings() {
-        register_setting('vap_options', 'vap_sizes');
-    }
-
-    /*function vap_display_admin() {
-        $messages = false;
-        ?>
-    <div class="wrap">
-        <h2>vlam-a-post</h2>
-        <p>Ik hoef hier helemaal niks mee!</p>
-        <?php if (isset($messages['errors'])) { ?>
-        <div class="error below-h2" id="message">
-            <p><strong>Something(s) went wrong:</strong></p>
-            <ul>
-                <?php foreach ($messages['errors'] as $error) { ?>
-                <li><?php echo $error; ?></li>
-                <?php } ?>
-            </ul>
-        </div>
-        <?php } ?>
-        <?php if (isset($messages['succes'])) { ?>
-        <div class="updated fade below-h2" id="message">
-            <p><strong>That went quite well:</strong></p>
-            <ul>
-                <?php foreach ($messages['succes'] as $succes) { ?>
-                <li><?php echo $succes; ?></li>
-                <?php } ?>
-            </ul>
-        </div>
-        <?php } ?>
-        <form method="post" action="<?php echo $_SERVER['REQUEST_URI']; ?>">
-                <?php settings_fields(vap_options); ?>
-
-            <p class="submit">
-                <input type="submit" class="button-primary" value="<?php _e('Save Changes'); ?>" />
-            </p>
-        </form>
-    </div>
-        <?php
-    }*/
 ?>
