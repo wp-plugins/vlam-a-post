@@ -5,7 +5,7 @@ Contributors: Walter Vos
 Tags: URL shortener, vlam, twitter, link shortener
 Requires at least: 2.0
 Tested up to: 2.8.6
-Stable tag: 1.0
+Stable tag: 1.0.1
 
 vlam-a-post automatically creates a vl.am URL for every post you publish and keeps track of the number of clicks the vl.am URL received.
 
@@ -41,6 +41,9 @@ Please write a topic in the [WordPress support forums](http://wordpress.org/tags
 == Changelog ==
 
 Got feature requests for this plugin?  Please write a topic in the [WordPress support forums](http://wordpress.org/tags/vlam-a-post?forum_id=10#postform "WordPress support forums").
+
+= 1.0.1 =
+* Fixed a mistake in the CSS for the dashboard widget
 
 = 1.0 =
 
